@@ -4,6 +4,7 @@ const args = process.argv.slice(2); // Ignorar los primeros dos elementos
 
 async function createJson([option, ...args]) {
 
+  const fileName = 'rules.json'
   try {
 
     const validate = allowOptions.includes(option)
@@ -14,7 +15,6 @@ async function createJson([option, ...args]) {
       return
     }
 
-    const fileName = 'rules.json'
     const file = await open(fileName, 'r')
     const { buffer } = await file.read()
 
