@@ -1,29 +1,23 @@
-import { open } from 'fs/promises'
-import { formatterDate, allowOptions } from './utils/util.mjs';
-const args = process.argv.slice(2); // Ignorar los primeros dos elementos
+#!/usr/bin/env node
 
-async function createJson([option, ...args]) {
+import { allowOptions } from './utils/util.mjs';
+import { tasks as taskAll, createTask, deleteTask, updateDescriptionTask, updateStatusTask } from './helpers/crudHelper.mjs';
 
-  const fileName = 'rules.json'
+
+async function createJson() {
+
+  let tasks = await taskAll
+
+  const option = process.argv[2]
+  const args = process.argv.slice(3);
+
   try {
-
     const validate = allowOptions.includes(option)
 
     if (!validate) {
-      const text = option ?? ''
-      console.log(`El comando "${text}" es incorrecto, revisa la lista`)
+      console.log(`El comando "${option ?? ''}" es incorrecto, revisa la lista`)
       return
     }
-
-    const file = await open(fileName, 'r')
-    const { buffer } = await file.read()
-
-    let dataString = buffer.toString('utf-8').trim()
-    let tasks = []
-
-    // Remover caracteres de control invisibles y espacios en blanco innecesarios
-    dataString = dataString.replace(/[\u0000-\u001F\u007F]/g, '');
-    if (dataString) tasks = JSON.parse(dataString)
 
     if (option === 'list') {
       const filterTask = args[0]
@@ -31,7 +25,11 @@ async function createJson([option, ...args]) {
       const fullOption = `${option} ${joinArgs}`
 
       if (joinArgs === '') {
-        console.log(tasks)
+        if(taskAll.length === 0){
+          console.log('No se cuenta con tareas a mostrar');
+          return
+        }
+        console.log(taskAll)
         return
       }
 
@@ -43,98 +41,44 @@ async function createJson([option, ...args]) {
           return
         }
 
-        const data = tasks.filter(task => task.status === filterTask)
-        console.log(data);
+        const listAllTask = tasks.filter(task => task.status === filterTask)
+
+        if(listAllTask.length === 0) {
+          console.log(`No se cuenta con tareas marcadas en '${joinArgs}' para mostrar`);
+          return
+        }
+        console.log(listAllTask);
         return
+        
       }
     }
 
     if (option === 'add') {
-      if (!isNaN(+args[0])) {
-        console.log('La descripcion debe ser de tipo texto')
-        return
-      }
-
-      const description = args[0]
-      const id = tasks.length ? tasks[tasks.length - 1].id + 1 : 1
-
-      const task = {
-        id,
-        description,
-        status: 'todo',
-        createAt: formatterDate,
-        updatedAt: formatterDate
-      }
-
-      tasks.push(task)
-      await file.close()
-
-      const newFile = await open(fileName, 'w')
-      await newFile.write(JSON.stringify(tasks, null, 2))
-      await newFile.close()
-
-      console.log('se añadio nueva tarea: ID-' + task.id);
-
+      createTask(args)
     } else {
       if (!isNaN(args[0])) {
         const id = +args[0]
         const newValue = args[1]
 
-        const findTask = tasks.find(task => task.id === id)
-        if (!findTask) {
-          console.log('No se realizaron cambios, no existe el elemento');
-          return
+        if (option === 'update') await updateDescriptionTask({ id, description: newValue })
+
+        if (option === 'delete') await deleteTask({ id })
+
+        if (
+            option === 'mark-in-progress' ||
+            option === 'mark-done'
+          ) {
+          const status = (option === 'mark-done') 
+            ? 'done' 
+            : 'in-progress'
+          await updateStatusTask({ id, status })
         }
-
-        switch (option) {
-          case 'update':
-            {
-              findTask.description = newValue
-              findTask.updatedAt = formatterDate
-
-              console.log('Se actualizo la descripcion del ID-' + id);
-            }
-            break;
-          case 'delete':
-            {
-            tasks = tasks.filter(task => task.id !== id)    
-            console.log('Se elimino el ID-' + id);          
-            }
-            break;
-          case 'mark-in-progress':
-            {
-              findTask.status = 'in-progress'
-              findTask.updatedAt = formatterDate
-              
-              console.log('Se actualizo el status del ID-' + id);
-            }
-            break;
-          case 'mark-done':
-            {
-              findTask.status = 'done'
-              findTask.updatedAt = formatterDate
-
-              console.log('Se actualizo el status del ID-' + id);        
-            }
-            break;
-        }
-
-        await file.close()
-
-      const newFile = await open(fileName, 'w')
-      await newFile.write(JSON.stringify(tasks, null, 2))
-      await newFile.close() 
       }
 
     }
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      await open(fileName, 'w')
-      return
-    }
     console.log(error)
-
   }
 }
 
-createJson(args)
+createJson()
